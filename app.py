@@ -2,9 +2,9 @@ import datetime
 import uuid
 from functools import wraps
 import jwt
+import requests
 from flask import Flask, request, jsonify, make_response
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Boolean
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 
@@ -28,6 +28,7 @@ class User(db.Model):
 
 class Feed(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text(50))
     upcoming = db.Column(db.Boolean)
     ongoing = db.Column(db.Boolean)
     completed = db.Column(db.Boolean)
@@ -104,9 +105,12 @@ def create_user(current_user):
 
 
 @app.route('/feed', methods=["POST"])
-def add_url():
+def add_feed():
     data = request.get_json()
-    new_feed = Feed(upcoming=data['upcoming'], ongoing=data['ongoing'], completed=data['completed'], url=data['url'])
+    new_feed = Feed(name=data['name'], upcoming=data['upcoming'], ongoing=data['ongoing'], completed=data['completed'], url=data['url'])
+    res = requests.get(data['url'])
+    with open("./feed/" + new_feed.name + ".mp4", 'wb') as file:
+        file.write(res.content)
     db.session.add(new_feed)
     db.session.commit()
     return jsonify({"message": "New feed added!"})
