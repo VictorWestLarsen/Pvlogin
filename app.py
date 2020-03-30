@@ -1,20 +1,28 @@
 import datetime
 import uuid
 from functools import wraps
-
+import enum
 import jwt
 from flask import Flask, request, jsonify, make_response
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Enum
 from werkzeug.security import generate_password_hash, check_password_hash
+import os
 
 app = Flask(__name__)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///main.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'thisissecret'
+app.config['SECRET_KEY'] = os.urandom(32)
 
 db = SQLAlchemy(app)
 db.__init__(app)
+
+
+class FeedStatus(enum.Enum):
+    upcoming = 1
+    ongoing = 2
+    completed = 3
 
 
 class User(db.Model):
@@ -23,6 +31,12 @@ class User(db.Model):
     name = db.Column(db.String(80))
     password = db.Column(db.String(80))
     admin = db.Column(db.Boolean)
+
+
+class Feed(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    status = db.Column(Enum(FeedStatus))
+    url = db.Column(db.Text)
 
 
 def token_required(f):
@@ -94,6 +108,15 @@ def create_user(current_user):
     return jsonify({"message": "new user created!"})
 
 
+@app.route('/video')
+def add_url():
+    data = request.get_json()
+    new_feed = Feed(ongoing=data['ongoing'], completed=data['completed'], upcoming=data['upcoming'], url=data['url'])
+    db.session.add(new_feed)
+    db.session.commit()
+    return jsonify({"message": "New feed added"})
+
+
 @app.route('/user/promote/<public_id>', methods=['PUT'])
 @token_required
 def promote_user(current_user, public_id):
@@ -163,6 +186,7 @@ def login():
         token = jwt.encode({'public_id': user.public_id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
         return jsonify({'token': token.decode('UTF-8')})
     return make_response('Could not verify', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
+
 
 
 if __name__ == '__main__':
