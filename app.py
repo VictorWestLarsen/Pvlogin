@@ -1,19 +1,24 @@
 import datetime
+import base64
+
 import uuid
 from functools import wraps
 import jwt
 import requests
 from flask import Flask, request, jsonify, make_response
+from flask_cors import CORS, cross_origin
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.http import parse_authorization_header
 import os
 
 app = Flask(__name__)
 
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///main.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.urandom(32)
-
+cors = CORS(app, resources={r"/*": {"origins" : "*"}})
 db = SQLAlchemy(app)
 db.__init__(app)
 
@@ -171,20 +176,25 @@ def delete_user(current_user, public_id):
     return jsonify({'Message': 'The user has been deleted!'})
 
 
-@app.route('/login')
+@app.route('/login', methods=['POST'])
 def login():
-    auth = request.authorization
+    auth = request.headers.get("authorization")
+    splitted = auth.split('Basic')
+    data = parse_authorization_header(auth)
+
+    print(auth)
+
     if not auth or not auth.username or not auth.password:
-        return make_response('Could not verify', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
+        return make_response('Hvem er du?', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
 
     user = User.query.filter_by(name=auth.username).first()
 
     if not user:
-        return make_response('Could not verify', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
+        return make_response('Skrid!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
     if check_password_hash(user.password, auth.password):
         token = jwt.encode({'public_id': user.public_id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
-        return jsonify({'token': token.decode('UTF-8')})
-    return make_response('Could not verify', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
+        return make_response({'token': token.decode('UTF-8')})
+    return make_response('Fuck af!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
 
 
 if __name__ == '__main__':
