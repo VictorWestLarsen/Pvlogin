@@ -18,7 +18,8 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///main.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.urandom(32)
-cors = CORS(app, resources={r"/*": {"origins" : "*"}})
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
 db = SQLAlchemy(app)
 db.__init__(app)
 
@@ -177,21 +178,24 @@ def delete_user(current_user, public_id):
 
 
 @app.route('/login', methods=['POST'])
+@cross_origin()
 def login():
-    auth = request.headers.get("authorization")
+    auth = request.headers.get('authorization')
     splitted = auth.split('Basic')
-    data = parse_authorization_header(auth)
+    user_encoded = splitted[1]
+    user_decoded = base64.b64decode(user_encoded).decode('utf-8')
+    user = user_decoded.split(":")
+    username = user[0]
+    password = user[1]
 
-    print(auth)
-
-    if not auth or not auth.username or not auth.password:
+    if not username or not password:
         return make_response('Hvem er du?', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
 
-    user = User.query.filter_by(name=auth.username).first()
+    user = User.query.filter_by(name=username).first()
 
     if not user:
         return make_response('Skrid!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
-    if check_password_hash(user.password, auth.password):
+    if check_password_hash(user.password, password):
         token = jwt.encode({'public_id': user.public_id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
         return make_response({'token': token.decode('UTF-8')})
     return make_response('Fuck af!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
