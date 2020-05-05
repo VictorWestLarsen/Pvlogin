@@ -5,40 +5,84 @@ import uuid
 from functools import wraps
 import jwt
 import requests
+from flask_marshmallow import Marshmallow
 from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS, cross_origin
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Column, String, Integer
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.http import parse_authorization_header
 import os
 
 app = Flask(__name__)
 
-
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///main.db'
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'planets.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.urandom(32)
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
 db = SQLAlchemy(app)
+ma = Marshmallow(app)
 db.__init__(app)
 
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    public_id = db.Column(db.Text)
-    name = db.Column(db.String(80))
-    password = db.Column(db.String(80))
-    admin = db.Column(db.Boolean)
+@app.cli.command('db_create')
+def db_create():
+    db.create_all()
+    print('Database Created!')
 
 
-class Feed(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.Text(50))
-    upcoming = db.Column(db.Boolean)
-    ongoing = db.Column(db.Boolean)
-    completed = db.Column(db.Boolean)
-    url = db.Column(db.Text)
+@app.cli.command('db_drop')
+def db_drop():
+    db.drop_all()
+    print('Database Dropped!')
+
+
+@app.cli.command('db_seed')
+def db_seed():
+    feed_upcoming = Feed(feed_type="upcoming",
+                 feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579394635.021413-human.mp4")
+    feed_upcoming2 = Feed(feed_type="upcoming",
+                         feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/254/ellesgaard-254-1579326018.059277-human.mp4")
+    feed_upcoming3 = Feed(feed_type="upcoming",
+                         feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/254/ellesgaard-254-1579429260.212495-human.mp4")
+    feed_upcoming4 = Feed(feed_type="upcoming",
+                         feed_url="https://storage.googleapis.com/porcovision-saved-videos/ellesgaard/256/ellesgaard-256-1579367213.956265-human.mp4")
+    feed_ongoing = Feed(feed_type="ongoing",
+                 feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579394169.802078-human.mp4")
+    feed_ongoing2 = Feed(feed_type="ongoing",
+                        feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579412110.43514-human.mp4")
+    feed_ongoing3 = Feed(feed_type="ongoing",
+                         feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579420154.523119-human.mp4")
+    feed_ongoing4 = Feed(feed_type="ongoing",
+                         feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579422374.868239-human.mp4")
+    feed_completed = Feed(feed_type="completed",
+                         feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579429875.110848-human.mp4")
+    feed_completed2 = Feed(feed_type="completed",
+                          feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/248/ellesgaard-248-1579339595.370897-human.mp4")
+    feed_completed3 = Feed(feed_type="completed",
+                          feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/234/ellesgaard-234-1579359695.669374-human.mp4")
+    feed_completed4 = Feed(feed_type="completed",
+                          feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/254/ellesgaard-254-1579516496.906986-human.mp4")
+
+    db.session.add(feed_upcoming)
+    db.session.add(feed_upcoming2)
+    db.session.add(feed_upcoming3)
+    db.session.add(feed_upcoming4)
+    db.session.add(feed_ongoing)
+    db.session.add(feed_ongoing2)
+    db.session.add(feed_ongoing3)
+    db.session.add(feed_ongoing4)
+    db.session.add(feed_completed)
+    db.session.add(feed_completed2)
+    db.session.add(feed_completed3)
+    db.session.add(feed_completed4)
+
+    test_user = User(first_name="Admin", last_name="DaBest", email="test@test.com", password="12345")
+    db.session.add(test_user)
+    db.session.commit()
+    print("Database Seeded!")
 
 
 def token_required(f):
@@ -63,118 +107,13 @@ def token_required(f):
     return decorated
 
 
-@app.route('/user', methods=['GET'])
-@token_required
-def get_all_users(current_user):
-    if not current_user.admin:
-        return jsonify({'message': 'Cannot perform that function!'})
-
-    users = User.query.all()
-
-    output = []
-    for user in users:
-        user_data = {'public_id': user.public_id, 'name': user.name, 'password': user.password, 'admin': user.admin}
-        output.append(user_data)
-
-    return jsonify({'users': output})
-
-
-@app.route('/user/<public_id>', methods=['GET'])
-@token_required
-def get_user(current_user, public_id):
-    if not current_user.admin:
-        return jsonify({'message': 'Cannot perform that function!'})
-
-    user = User.query.filter_by(public_id=public_id).first()
-
-    if not user:
-        return jsonify({"Message": "No user found with that ID"})
-
-    user_data = {'public_id': user.public_id, 'name': user.name, 'password': user.password, 'admin': user.admin}
-
-    return jsonify({"user": user_data})
-
-
-@app.route('/user', methods=['POST'])
-@token_required
-def create_user(current_user):
-    if not current_user.admin:
-        return jsonify({'message': 'Cannot perform that function!'})
-
-    data = request.get_json()
-    hashed_password = generate_password_hash(data['password'], method='sha256')
-
-    new_user = User(public_id=str(uuid.uuid4()), name=data['name'], password=hashed_password, admin=False)
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify({"message": "new user created!"})
-
-
 @app.route('/feed', methods=["POST"])
 def add_feed():
     data = request.get_json()
-    new_feed = Feed(name=data['name'], upcoming=data['upcoming'], ongoing=data['ongoing'], completed=data['completed'], url=data['url'])
-    res = requests.get(data['url'])
-    with open("./feed/" + new_feed.name + ".mp4", 'wb') as file:
-        file.write(res.content)
+    new_feed = Feed(feed_type=data['feed_type'],feed_url=data['feed_url'])
     db.session.add(new_feed)
     db.session.commit()
     return jsonify({"message": "New feed added!"})
-
-
-@app.route('/user/promote/<public_id>', methods=['PUT'])
-@token_required
-def promote_user(current_user, public_id):
-    if not current_user.admin:
-        return jsonify({'message': 'Cannot perform that function!'})
-
-    user = User.query.filter_by(public_id=public_id).first()
-
-    if not user:
-        return jsonify({"Message": "No user found with that ID"})
-    if user.admin:
-        return jsonify({"Message": "User is already admin!"})
-    elif not user.admin:
-        user.admin = True
-        db.session.commit()
-        return jsonify({"Message": "User has been promoted!"})
-
-
-@app.route('/user/demote/<public_id>', methods=['PUT'])
-@token_required
-def demote_user(current_user, public_id):
-    if not current_user.admin:
-        return jsonify({'message': 'Cannot perform that function!'})
-
-    user = User.query.filter_by(public_id=public_id).first()
-
-    if not user:
-        return jsonify({"Message": "No user found with that ID"})
-
-    if user.admin:
-        user.admin = False
-        db.session.commit()
-        return jsonify({"Message": "User has been demoted!"})
-
-    elif not user.admin:
-        return jsonify({"Message": "User is not admin!"})
-
-
-@app.route('/user/<public_id>', methods=['DELETE'])
-@token_required
-def delete_user(current_user, public_id):
-    if not current_user.admin:
-        return jsonify({'message': 'Cannot perform that function!'})
-
-    user = User.query.filter_by(public_id=public_id).first()
-
-    if not user:
-        return jsonify({"Message": "No user found with that ID"})
-
-    db.session.delete(user)
-    db.session.commit()
-
-    return jsonify({'Message': 'The user has been deleted!'})
 
 
 @app.route('/login', methods=['POST'])
@@ -185,20 +124,62 @@ def login():
     user_encoded = splitted[1]
     user_decoded = base64.b64decode(user_encoded).decode('utf-8')
     user = user_decoded.split(":")
-    username = user[0]
+    email = user[0]
     password = user[1]
 
-    if not username or not password:
-        return make_response('Hvem er du?', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
-
-    user = User.query.filter_by(name=username).first()
+    user = User.query.filter_by(name=email).first()
 
     if not user:
-        return make_response('Skrid!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
+        return make_response('Email or password is invalid!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
     if check_password_hash(user.password, password):
         token = jwt.encode({'public_id': user.public_id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
         return make_response({'token': token.decode('UTF-8')})
-    return make_response('Fuck af!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
+    return make_response('Email or password is invalid!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
+
+
+@app.route('/feeds', methods=['GET'])
+@cross_origin()
+def get_feeds():
+    upcoming_list = Feed.query.filter_by(feed_type="upcoming").all()
+    ongoing_list = Feed.query.filter_by(feed_type="ongoing").all()
+    completed_list = Feed.query.filter_by(feed_type="completed").all()
+    result = [{"upcoming": feeds_schema.dump(upcoming_list), "ongoing": feeds_schema.dump(ongoing_list),
+               "completed": feeds_schema.dump(completed_list)}]
+    return jsonify(result)
+
+
+# Db Models
+class User(db.Model):
+    _tablename_ = 'users'
+    id = Column(Integer, primary_key=True)
+    first_name = Column(String)
+    last_name = Column(String)
+    email = Column(String, unique=True)
+    password = Column(String)
+
+
+class Feed(db.Model):
+    __tablename__ = 'feeds'
+    feed_id = Column(Integer, primary_key=True)
+    feed_type = Column(String)
+    feed_url = Column(String)
+
+
+class UserSchema(ma.Schema):
+    class Meta:
+        fields = ('id', 'first_name', 'last_name', 'email', 'password')
+
+
+class FeedSchema(ma.Schema):
+    class Meta:
+        fields = ('feed_id', 'feed_type', 'feed_url')
+
+
+user_schema = UserSchema()
+users_schema = UserSchema(many=True)
+
+feed_schema = FeedSchema()
+feeds_schema = FeedSchema(many=True)
 
 
 if __name__ == '__main__':
