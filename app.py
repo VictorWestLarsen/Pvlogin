@@ -1,10 +1,7 @@
 import datetime
 import base64
-
-import uuid
+from flask_jwt_extended import JWTManager, create_access_token
 from functools import wraps
-import jwt
-import requests
 from flask_marshmallow import Marshmallow
 from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS, cross_origin
@@ -17,11 +14,12 @@ import os
 app = Flask(__name__)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'planets.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'Porco.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.urandom(32)
-cors = CORS(app)
+CORS(app, origins=['*'])
 app.config['CORS_HEADERS'] = 'Content-Type'
+jwt = JWTManager(app)
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
 db.__init__(app)
@@ -120,20 +118,21 @@ def add_feed():
 @cross_origin()
 def login():
     auth = request.headers.get('authorization')
-    splitted = auth.split('Basic')
-    user_encoded = splitted[1]
+    splitter = auth.split('Basic')
+    user_encoded = splitter[1]
     user_decoded = base64.b64decode(user_encoded).decode('utf-8')
     user = user_decoded.split(":")
     email = user[0]
     password = user[1]
 
-    user = User.query.filter_by(name=email).first()
+    user = User.query.filter_by(email=email).first()
 
     if not user:
         return make_response('Email or password is invalid!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
-    if check_password_hash(user.password, password):
-        token = jwt.encode({'public_id': user.public_id, 'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
-        return make_response({'token': token.decode('UTF-8')})
+    if user.password == password:
+        token = create_access_token(email)
+        print(token)
+        return jsonify(token=token)
     return make_response('Email or password is invalid!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
 
 
