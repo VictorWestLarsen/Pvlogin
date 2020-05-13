@@ -1,6 +1,6 @@
-import datetime
 import base64
-from flask_jwt_extended import JWTManager, create_access_token
+from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, set_access_cookies, \
+    set_refresh_cookies, unset_jwt_cookies, jwt_required, jwt_refresh_token_required, current_user, get_jwt_identity
 from functools import wraps
 from flask_marshmallow import Marshmallow
 from flask import Flask, request, jsonify, make_response
@@ -16,8 +16,11 @@ app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'Porco.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.urandom(32)
-CORS(app, origins=['*'])
+app.config['JWT_SECRET_KEY'] = os.urandom(32)
+app.config['JWT_TOKEN_LOCATION'] = ['cookies']
+app.config['JWT_ACCESS_COOKIE_PATH'] = '/'
+app.config['JWT_REFRESH_COOKIE_PATH'] = '/token/refresh'
+CORS(app, origins=['http://localhost:4200'])
 app.config['CORS_HEADERS'] = 'Content-Type'
 jwt = JWTManager(app)
 db = SQLAlchemy(app)
@@ -83,29 +86,7 @@ def db_seed():
     print("Database Seeded!")
 
 
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-
-        if 'x-access-token' in request.headers:
-            token = request.headers['x-access-token']
-
-        if not token:
-            return jsonify({'message': 'Token is missing!'}), 401
-
-        try:
-            data = jwt.decode(token, app.config['SECRET_KEY'])
-            current_user = User.query.filter_by(public_id=data['public_id']).first()
-        except:
-            return jsonify({'message': 'Token is invalid!'}), 401
-
-        return f(current_user, *args, **kwargs)
-
-    return decorated
-
-
-@app.route('/feed', methods=["POST"])
+@app.route('/api/add_feed', methods=["POST"])
 def add_feed():
     data = request.get_json()
     new_feed = Feed(feed_type=data['feed_type'],feed_url=data['feed_url'])
@@ -114,8 +95,8 @@ def add_feed():
     return jsonify({"message": "New feed added!"})
 
 
-@app.route('/login', methods=['POST'])
-@cross_origin()
+@app.route('/api/login', methods=['POST'])
+@cross_origin(headers=['Content-Type', 'Authorization'])
 def login():
     auth = request.headers.get('authorization')
     splitter = auth.split('Basic')
@@ -130,14 +111,20 @@ def login():
     if not user:
         return make_response('Email or password is invalid!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
     if user.password == password:
-        token = create_access_token(email)
-        print(token)
-        return jsonify(token=token)
+        # Create Access and refresh token, based on the users email.
+        access_token = create_access_token(identity=email)
+        refresh_token = create_refresh_token(identity=email)
+        resp = jsonify({'login': True})
+        # Set JWT cookies in response
+        set_access_cookies(resp, access_token)
+        set_refresh_cookies(resp, refresh_token)
+        return resp, 200
     return make_response('Email or password is invalid!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
 
 
-@app.route('/feeds', methods=['GET'])
+@app.route('/api/feeds', methods=['GET'])
 @cross_origin()
+@jwt_required
 def get_feeds():
     upcoming_list = Feed.query.filter_by(feed_type="upcoming").all()
     ongoing_list = Feed.query.filter_by(feed_type="ongoing").all()
@@ -145,6 +132,23 @@ def get_feeds():
     result = [{"upcoming": feeds_schema.dump(upcoming_list), "ongoing": feeds_schema.dump(ongoing_list),
                "completed": feeds_schema.dump(completed_list)}]
     return jsonify(result)
+
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    resp = jsonify({'logout': True})
+    unset_jwt_cookies(resp)
+    return resp, 200
+
+
+@app.route('/refresh', methods=['POST'])
+@jwt_refresh_token_required
+def refresh():
+    current_user = get_jwt_identity()
+    access_token = create_access_token(identity=current_user)
+    resp = jsonify({'refresh': True})
+    set_access_cookies(resp, access_token)
+    return resp, 200
 
 
 # Db Models
