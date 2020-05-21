@@ -20,6 +20,7 @@ app.config['JWT_SECRET_KEY'] = os.urandom(32)
 app.config['JWT_TOKEN_LOCATION'] = ['cookies']
 app.config['JWT_ACCESS_COOKIE_PATH'] = '/'
 app.config['JWT_REFRESH_COOKIE_PATH'] = '/token/refresh'
+app.config['JWT_COOKIE_SECURE'] = True
 CORS(app, origins=['http://localhost:4200'])
 app.config['CORS_HEADERS'] = 'Content-Type'
 jwt = JWTManager(app)
@@ -42,30 +43,30 @@ def db_drop():
 
 @app.cli.command('db_seed')
 def db_seed():
-    feed_upcoming = Feed(feed_type="upcoming",
-                 feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579394635.021413-human.mp4")
-    feed_upcoming2 = Feed(feed_type="upcoming",
-                         feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/254/ellesgaard-254-1579326018.059277-human.mp4")
-    feed_upcoming3 = Feed(feed_type="upcoming",
-                         feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/254/ellesgaard-254-1579429260.212495-human.mp4")
-    feed_upcoming4 = Feed(feed_type="upcoming",
-                         feed_url="https://storage.googleapis.com/porcovision-saved-videos/ellesgaard/256/ellesgaard-256-1579367213.956265-human.mp4")
-    feed_ongoing = Feed(feed_type="ongoing",
-                 feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579394169.802078-human.mp4")
-    feed_ongoing2 = Feed(feed_type="ongoing",
-                        feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579412110.43514-human.mp4")
-    feed_ongoing3 = Feed(feed_type="ongoing",
+    feed_upcoming = Feed(feed_type="upcoming", box_number=5,
+                         feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579394635.021413-human.mp4")
+    feed_upcoming2 = Feed(feed_type="upcoming", box_number=6,
+                          feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/254/ellesgaard-254-1579326018.059277-human.mp4")
+    feed_upcoming3 = Feed(feed_type="upcoming", box_number=7,
+                          feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/254/ellesgaard-254-1579429260.212495-human.mp4")
+    feed_upcoming4 = Feed(feed_type="upcoming", box_number=15,
+                          feed_url="https://storage.googleapis.com/porcovision-saved-videos/ellesgaard/256/ellesgaard-256-1579367213.956265-human.mp4")
+    feed_ongoing = Feed(feed_type="ongoing", box_number=8,
+                        feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579394169.802078-human.mp4")
+    feed_ongoing2 = Feed(feed_type="ongoing", box_number=9,
+                         feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579412110.43514-human.mp4")
+    feed_ongoing3 = Feed(feed_type="ongoing", box_number=10,
                          feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579420154.523119-human.mp4")
-    feed_ongoing4 = Feed(feed_type="ongoing",
+    feed_ongoing4 = Feed(feed_type="ongoing", box_number=11,
                          feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579422374.868239-human.mp4")
-    feed_completed = Feed(feed_type="completed",
-                         feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579429875.110848-human.mp4")
-    feed_completed2 = Feed(feed_type="completed",
-                          feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/248/ellesgaard-248-1579339595.370897-human.mp4")
-    feed_completed3 = Feed(feed_type="completed",
-                          feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/234/ellesgaard-234-1579359695.669374-human.mp4")
-    feed_completed4 = Feed(feed_type="completed",
-                          feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/254/ellesgaard-254-1579516496.906986-human.mp4")
+    feed_completed = Feed(feed_type="completed", box_number=2,
+                          feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/231/ellesgaard-231-1579429875.110848-human.mp4")
+    feed_completed2 = Feed(feed_type="completed", box_number=3,
+                           feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/248/ellesgaard-248-1579339595.370897-human.mp4")
+    feed_completed3 = Feed(feed_type="completed", box_number=4,
+                           feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/234/ellesgaard-234-1579359695.669374-human.mp4")
+    feed_completed4 = Feed(feed_type="completed", box_number=12,
+                           feed_url="https://storage.googleapis.com/porcovision-minidecoder/ellesgaard/254/ellesgaard-254-1579516496.906986-human.mp4")
 
     db.session.add(feed_upcoming)
     db.session.add(feed_upcoming2)
@@ -89,7 +90,7 @@ def db_seed():
 @app.route('/api/add_feed', methods=["POST"])
 def add_feed():
     data = request.get_json()
-    new_feed = Feed(feed_type=data['feed_type'],feed_url=data['feed_url'])
+    new_feed = Feed(feed_type=data['feed_type'], feed_url=data['feed_url'], box_number=data['box_number'])
     db.session.add(new_feed)
     db.session.commit()
     return jsonify({"message": "New feed added!"})
@@ -109,7 +110,8 @@ def login():
     user = User.query.filter_by(email=email).first()
 
     if not user:
-        return make_response('Email or password is invalid!', 401, {'WWW-Authenticate': 'Basic realm="Login required!"'})
+        return make_response('Email or password is invalid!', 401,
+                             {'WWW-Authenticate': 'Basic realm="Login required!"'})
     if user.password == password:
         # Create Access and refresh token, based on the users email.
         access_token = create_access_token(identity=email)
@@ -134,14 +136,14 @@ def get_feeds():
     return jsonify(result)
 
 
-@app.route('/logout', methods=['POST'])
+@app.route('/api/logout', methods=['POST'])
 def logout():
     resp = jsonify({'logout': True})
     unset_jwt_cookies(resp)
     return resp, 200
 
 
-@app.route('/refresh', methods=['POST'])
+@app.route('/api/refresh', methods=['POST'])
 @jwt_refresh_token_required
 def refresh():
     current_user = get_jwt_identity()
@@ -149,6 +151,23 @@ def refresh():
     resp = jsonify({'refresh': True})
     set_access_cookies(resp, access_token)
     return resp, 200
+
+
+@app.route('/api/update_type', methods=['PUT'])
+def update_type():
+    data = request.get_json()
+    update = Feed.query.filter_by(box_number=data['box_number']).first()
+    update.feed_type = data['feed_type']
+    db.session.commit()
+    return jsonify(message="feed type updated"), 200
+
+
+@app.route('/api/remove_feed/<int:box_number>', methods=['DELETE'])
+def remove_feed(box_number:int):
+    Feed.query.filter_by(box_number=box_number).delete()
+    db.session.commit()
+    return jsonify(message="Feed with box number " + str(box_number) + " was deleted")
+
 
 
 # Db Models
@@ -166,6 +185,7 @@ class Feed(db.Model):
     feed_id = Column(Integer, primary_key=True)
     feed_type = Column(String)
     feed_url = Column(String)
+    box_number = Column(Integer)
 
 
 class UserSchema(ma.Schema):
@@ -175,15 +195,14 @@ class UserSchema(ma.Schema):
 
 class FeedSchema(ma.Schema):
     class Meta:
-        fields = ('feed_id', 'feed_type', 'feed_url')
+        fields = ('box_number', 'feed_type', 'feed_url')
 
 
 user_schema = UserSchema()
 users_schema = UserSchema(many=True)
 
 feed_schema = FeedSchema()
-feeds_schema = FeedSchema(many=True)
-
+feeds_schema = FeedSchema(many=True, only=("feed_url", "box_number"))
 
 if __name__ == '__main__':
     app.run()
