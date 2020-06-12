@@ -21,6 +21,7 @@ app.config['JWT_TOKEN_LOCATION'] = ['cookies']
 app.config['JWT_ACCESS_COOKIE_PATH'] = '/'
 app.config['JWT_REFRESH_COOKIE_PATH'] = '/token/refresh'
 app.config['JWT_COOKIE_SECURE'] = True
+app.config['JWT_COOKIE_CSRF_PROTECT'] = True
 CORS(app, origins=['http://localhost:4200'])
 app.config['CORS_HEADERS'] = 'Content-Type'
 jwt = JWTManager(app)
