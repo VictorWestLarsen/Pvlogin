@@ -164,8 +164,8 @@ def update_type():
 
 
 @app.route('/api/remove_feed/<int:box_number>', methods=['DELETE'])
-def remove_feed(box_number:int):
-    Feed.query.filter_by(box_number=box_number).delete()
+def remove_feed(box_number: int):
+    Feed.query.filter_by(box_number=box_number).first().delete()
     db.session.commit()
     return jsonify(message="Feed with box number " + str(box_number) + " was deleted")
 
